@@ -24,6 +24,10 @@
   color-scheme:light;
 }
 *{box-sizing:border-box}
+/* The UA default for [hidden] is display:none, but any author rule
+   that sets display (.cols uses grid) outranks it — which left the
+   hidden view stacked under the visible one. This settles it. */
+[hidden]{display:none!important}
 html,body{margin:0;padding:0}
 body{background:var(--paper);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 h1,h2{font-family:var(--font-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
