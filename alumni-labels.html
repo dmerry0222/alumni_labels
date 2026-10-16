@@ -1,0 +1,1098 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alumni Labels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Two modes in one file:
+     Single label — kiosk check-in station, fixed Avery 5161, prints direct.
+     CSV batch    — roster import, field toggles, format picker, PDF export.
+   Light only, on purpose: this runs on shared machines whose OS theme
+   should not change how the tool looks. */
+:root{
+  --paper:#eef1f5; --surface:#ffffff; --surface-2:#f6f8fa;
+  --ink:#131a24; --ink-soft:#56657a; --rule:#d2dae4;
+  --navy:#1b3a63; --amber:#b4801a; --good:#1f7a52; --bad:#a62f2f; --warn:#8a6412;
+  --warn-bg:#fdf4e3; --warn-line:#d9a441; --warn-ink:#6a4909;
+  --font-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --font-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2{font-family:var(--font-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:20px}
+.mono{font-family:var(--font-mono);font-size:.92em}
+
+header.mast{border-bottom:1px solid var(--rule);background:var(--surface)}
+.mast-in{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-block:14px}
+.mast h1{font-size:21px;font-weight:700}
+.eyebrow{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+
+/* mode switch ---------------------------------------------------- */
+.modes{display:inline-flex;background:var(--surface-2);border:1px solid var(--rule);border-radius:999px;padding:3px;gap:3px}
+.mode{
+  border:none;background:none;border-radius:999px;padding:8px 18px;cursor:pointer;
+  font:inherit;font-weight:600;font-size:14px;color:var(--ink-soft);
+}
+.mode[aria-selected="true"]{background:var(--navy);color:#fff}
+.mode:hover:not([aria-selected="true"]){color:var(--ink)}
+
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:3px}
+.card-h{padding:12px 16px;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card-h h2{font-size:14px;font-weight:600;letter-spacing:.02em}
+.card-h .sp{flex:1 1 auto;min-width:0}
+.card-b{padding:16px}
+
+button{font:inherit;cursor:pointer;border-radius:3px;border:1px solid var(--rule);background:var(--surface-2);color:var(--ink);padding:8px 13px;transition:background .12s,border-color .12s}
+button:hover{border-color:var(--ink-soft)}
+button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within{outline:2px solid var(--navy);outline-offset:1px}
+button.primary{background:var(--navy);border-color:var(--navy);color:var(--surface);font-weight:600}
+button.primary:hover{filter:brightness(1.08)}
+button.ghost{background:transparent}
+button.tiny{padding:4px 8px;font-size:12.5px}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none}
+input[type=text],input[type=email],input[type=url],select{font:inherit;width:100%;padding:7px 9px;border:1px solid var(--rule);border-radius:3px;background:var(--surface);color:var(--ink)}
+label.fld{display:block}
+label.fld>span{display:block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:620px){.grid2{grid-template-columns:1fr}}
+
+.drop{border:1.5px dashed var(--rule);border-radius:4px;padding:22px 16px;text-align:center;background:var(--surface-2);transition:border-color .12s,background .12s}
+.drop.hot{border-color:var(--amber);background:color-mix(in srgb,var(--amber) 8%,var(--surface-2))}
+.drop p{margin:0 0 10px;color:var(--ink-soft);font-size:13.5px}
+
+main{padding-block:20px 56px}
+.cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.cols{grid-template-columns:1fr}}
+.stack{display:grid;gap:20px}
+
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);text-align:left;font-weight:500;padding:8px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+tbody tr.sel{background:color-mix(in srgb,var(--navy) 7%,transparent)}
+tbody tr:hover{background:var(--surface-2)}
+tbody tr.cur{box-shadow:inset 3px 0 0 var(--amber)}
+.nm{font-weight:600}
+.meta{color:var(--ink-soft);font-size:12.5px}
+.ex{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);border:1px solid currentColor;border-radius:2px;padding:0 4px;margin-left:6px;vertical-align:1px}
+.flag{display:inline-block;font-family:var(--font-mono);font-size:10px;letter-spacing:.05em;padding:1px 5px;border-radius:2px;border:1px solid currentColor;margin:1px 3px 1px 0}
+.f-ok{color:var(--good)} .f-warn{color:var(--warn)} .f-off{color:var(--ink-soft)} .f-bad{color:var(--bad)}
+.empty{padding:28px 16px;text-align:center;color:var(--ink-soft);font-size:14px}
+
+.proof{background:var(--surface-2);border:1px solid var(--rule);border-radius:3px;padding:16px;display:flex;justify-content:center;overflow:auto}
+.label-proof{position:relative;background:#fff;color:#000;box-shadow:0 1px 4px rgba(0,0,0,.22);flex:none}
+/* No vertical clipping: at line-height 1 an Arial descender falls
+   outside the box, and the JS already trims each line to width. */
+.label-proof .ln{position:absolute;white-space:pre;overflow:visible;font-family:Helvetica,Arial,sans-serif}
+.label-proof canvas{position:absolute;image-rendering:pixelated}
+.rulerline{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);text-align:center;margin-top:10px}
+
+.toggles{display:flex;flex-wrap:wrap;gap:8px}
+.tg{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:999px;padding:4px 11px;font-size:13px;background:var(--surface-2);cursor:pointer}
+.tg input{margin:0;accent-color:var(--navy)}
+.tg.on{border-color:var(--navy);background:color-mix(in srgb,var(--navy) 10%,transparent)}
+
+.note{font-size:12.5px;color:var(--ink-soft)}
+.sheetline{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);margin-top:12px}
+.sheetline b{font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:3px;font-size:13.5px;box-shadow:0 4px 18px rgba(0,0,0,.3);z-index:50}
+.err{color:var(--bad);font-size:13px;margin-top:8px}
+.ok{color:var(--good)}
+hr.sep{border:none;border-top:1px solid var(--rule);margin:16px 0}
+.report{margin-top:12px;border:1px solid var(--rule);border-radius:3px;background:var(--surface-2);padding:12px 14px;font-size:13px}
+.report ul{margin:8px 0 0;padding-left:18px}
+.report li{margin:3px 0;color:var(--ink-soft)}
+.report b{color:var(--ink)}
+.inline-check{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;cursor:pointer}
+.inline-check input{accent-color:var(--navy);margin:0}
+
+/* the print warning — deliberately the loudest thing near a button */
+.printwarn{
+  margin-top:14px; display:flex; gap:10px; align-items:flex-start;
+  background:var(--warn-bg); border:1.5px solid var(--warn-line);
+  border-left-width:5px; border-radius:4px; padding:11px 13px;
+  color:var(--warn-ink); font-size:14px; line-height:1.4;
+}
+.printwarn .ic{flex:none;font-size:15px;line-height:1.3}
+.printwarn b{font-weight:700;white-space:nowrap}
+
+/* ---------------- kiosk view ---------------- */
+.kiosk{max-width:760px;margin:0 auto}
+.kiosk h2.big{font-family:var(--font-display);font-weight:700;font-size:24px;margin:0 0 18px}
+.kiosk .card-b{padding:22px}
+.kiosk label.fld>span{font-family:var(--font-body);font-size:13px;letter-spacing:.01em;text-transform:none;font-weight:600;color:var(--ink-soft);margin-bottom:5px}
+.kiosk input{font-size:18px;padding:12px 13px;border-radius:7px;background:var(--surface-2)}
+.kiosk input:focus{outline:3px solid var(--navy);outline-offset:1px;border-color:var(--navy)}
+.kiosk .grid2{gap:14px}
+.kiosk .proof{margin-top:20px;min-height:132px;align-items:center;border-radius:8px;padding:18px}
+.kiosk .ghosted{color:var(--ink-soft);font-size:15px}
+.kiosk .actions{display:flex;gap:12px;margin-top:18px;align-items:stretch}
+#kPrint{
+  flex:1 1 auto;font-family:var(--font-display);font-weight:700;font-size:20px;
+  padding:17px 24px;border-radius:8px;letter-spacing:.01em;
+}
+.kiosk #kClear{border-radius:8px;padding:14px 20px}
+#kMsg{margin-top:12px;font-size:15px;min-height:22px}
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap mast-in">
+    <h1>Alumni Labels</h1>
+    <div class="modes" role="tablist" aria-label="Mode">
+      <button class="mode" role="tab" id="mode-one" aria-selected="true"  aria-controls="view-one">Single label</button>
+      <button class="mode" role="tab" id="mode-csv" aria-selected="false" aria-controls="view-csv">CSV batch</button>
+    </div>
+    <span style="flex:1"></span>
+    <span class="eyebrow" id="libstat">Loading PDF engine…</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ================= VIEW: SINGLE LABEL (kiosk) ================= -->
+  <div class="kiosk" id="view-one">
+    <section class="card">
+      <div class="card-b">
+        <form id="kform" autocomplete="off" onsubmit="return false">
+          <div class="grid2">
+            <label class="fld"><span>First name</span><input type="text" id="k_firstName" autofocus></label>
+            <label class="fld"><span>Last name</span><input type="text" id="k_lastName"></label>
+            <label class="fld"><span>Degree &amp; year</span><input type="text" id="k_degree" placeholder="BA '20"></label>
+            <label class="fld"><span>Major</span><input type="text" id="k_major"></label>
+            <label class="fld"><span>Job title</span><input type="text" id="k_jobTitle"></label>
+            <label class="fld"><span>Company</span><input type="text" id="k_company"></label>
+            <label class="fld"><span>Industry</span><input type="text" id="k_industry"></label>
+            <label class="fld"><span>Email</span><input type="email" id="k_email" inputmode="email"></label>
+          </div>
+          <label class="fld" style="margin-top:14px"><span>LinkedIn URL</span><input type="url" id="k_linkedin" placeholder="https://www.linkedin.com/in/…"></label>
+        </form>
+
+        <div class="proof">
+          <div class="label-proof" id="kProof"></div>
+          <div class="ghosted" id="kGhost">Your label appears here</div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="kPrint" disabled>Print labels</button>
+          <button id="kClear" type="button">Clear</button>
+        </div>
+
+        <div class="printwarn">
+          <span class="ic" aria-hidden="true">&#9888;</span>
+          <span>In the print dialog, set Scale to <b>Custom: 100%</b> and make sure it is printing <b>one-sided</b>.</span>
+        </div>
+
+        <div id="kMsg"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== VIEW: CSV BATCH ===================== -->
+  <div class="cols" id="view-csv" hidden>
+
+    <div class="stack">
+      <section class="card">
+        <div class="card-h"><h2>Registration export</h2></div>
+        <div class="card-b">
+          <div class="drop" id="drop">
+            <p>Drop the registration export here, or choose a file. Columns are matched by meaning, so the alumni office&rsquo;s native export works unedited &mdash; no renaming headers first.</p>
+            <button class="primary" id="pick">Choose CSV file</button>
+            <input type="file" id="file" accept=".csv,text/csv" hidden>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;align-items:center">
+            <button id="tmpl">Download CSV template</button>
+            <label class="inline-check"><input type="checkbox" id="onlyreg" checked> Registered only</label>
+            <label class="inline-check"><input type="checkbox" id="replace" checked> Replace roster on import</label>
+          </div>
+          <div id="csvmsg"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h">
+          <h2>Roster</h2>
+          <span class="eyebrow" id="rostercount"></span>
+          <span class="sp"></span>
+          <button class="tiny ghost" id="selall">Select all</button>
+          <button class="tiny ghost" id="selnone">None</button>
+          <button class="tiny ghost" id="wipe">Clear</button>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead><tr>
+              <th style="width:34px"></th>
+              <th>Name</th>
+              <th>Degree &amp; major</th>
+              <th>Role</th>
+              <th>Lines</th>
+              <th>QR</th>
+              <th style="width:34px"></th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <div class="empty" id="emptymsg" hidden>Roster is empty. Upload the registration CSV, or switch to Single label.</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="card">
+        <div class="card-h"><h2>Label proof</h2><span class="eyebrow" id="proofwho"></span></div>
+        <div class="card-b">
+          <div class="proof"><div class="label-proof" id="proof"></div></div>
+          <div class="rulerline" id="dims"></div>
+          <hr class="sep">
+          <div class="eyebrow" style="margin-bottom:8px">Fields on the label — all on by default</div>
+          <div class="toggles" id="toggles"></div>
+          <p class="note" style="margin:10px 0 0">Empty fields are skipped on the label rather than printed as a gap, and the remaining lines grow to fill it. Switching a field off has the same effect, so fewer lines means larger type.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h"><h2>Sheet &amp; output</h2></div>
+        <div class="card-b">
+          <div class="grid2">
+            <label class="fld"><span>Avery format</span>
+              <select id="fmt"></select>
+            </label>
+            <label class="fld"><span>Pages per individual</span>
+              <select id="pages">
+                <option value="1">1 page</option>
+                <option value="2" selected>2 pages</option>
+                <option value="3">3 pages</option>
+                <option value="4">4 pages</option>
+              </select>
+            </label>
+          </div>
+          <p class="note" style="margin:10px 0 0">Every label on a person&rsquo;s pages is identical, and each individual starts on a fresh sheet.</p>
+          <div class="sheetline" id="math"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+            <button class="primary" id="gen">Generate PDF</button>
+            <button id="preview">Open in new tab</button>
+          </div>
+
+          <div class="printwarn">
+            <span class="ic" aria-hidden="true">&#9888;</span>
+            <span>In the print dialog, set Scale to <b>Custom: 100%</b> and make sure it is printing <b>one-sided</b>.</span>
+          </div>
+
+          <div id="genmsg"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ================================================================
+   1. FIELD SCHEMA
+   Each field names the column it wants from a CSV. `match` is run
+   against the header with punctuation and spaces stripped, so the
+   alumni office's real headers map without anyone renaming them.
+   Fields are claimed in this order and a column is used only once —
+   that is what keeps "Registrant Email Address" out of `address`.
+   ================================================================ */
+const FIELDS = [
+  { key:"regId",        label:"Registration ID", csv:"registration_id",
+    match:n => n.includes("registrationid") },
+  { key:"firstName",    label:"First name",      csv:"first_name",
+    match:n => n.includes("firstname") },
+  { key:"lastName",     label:"Last name",       csv:"last_name",
+    match:n => n.includes("lastname") },
+  { key:"email",        label:"Email",           csv:"email",
+    match:n => n.includes("email") || n === "mail" },
+  { key:"regDate",      label:"Registered on",   csv:"registration_date",
+    match:n => n.includes("registrationdate") },
+  { key:"regStatus",    label:"Status",          csv:"registration_status",
+    match:n => n.includes("registrationstatus") || n === "status" },
+  { key:"quantity",     label:"Quantity",        csv:"quantity",
+    match:n => n.includes("quantity") },
+  { key:"affiliation",  label:"I am a",          csv:"i_am_a",
+    match:n => n.startsWith("iama") || n.includes("affiliation") || n.includes("constituent") },
+  { key:"degree",       label:"Degree / year",   csv:"suffolk_degree_year",
+    match:n => n.includes("degree") || n.includes("classof") || n.includes("gradyear") },
+  { key:"linkedin",     label:"LinkedIn URL",    csv:"linkedin_url",
+    match:n => n.includes("linkedin") },
+  { key:"address",      label:"Preferred address", csv:"preferred_address",
+    match:n => n.includes("address") || n.includes("street") },
+  { key:"cityStateZip", label:"City / state / ZIP", csv:"preferred_city_state_zip",
+    match:n => n.includes("city") || n.includes("zip") || n.includes("postal") },
+  { key:"company",      label:"Company",         csv:"company",
+    match:n => n.includes("company") || n.includes("employer") || n.includes("organization") },
+  { key:"jobTitle",     label:"Job title",       csv:"job_title",
+    match:n => n.includes("jobtitle") || n === "title" || n.includes("position") },
+  { key:"industry",     label:"Industry",        csv:"industry",
+    match:n => n.includes("industry") || n.includes("sector") },
+  { key:"major",        label:"Major",           csv:"major",
+    match:n => n.includes("major") || n.includes("fieldofstudy") || n.includes("concentration") }
+];
+
+/* Printable blocks, in print order. `size` picks a font role; `max`
+   is how many wrapped lines the block may use before it gets trimmed.
+   No address fields: this is a networking label, not a mailing label.
+   A block whose value is empty for a given person is skipped outright,
+   and the remaining blocks grow to fill the label. */
+const LINES = [
+  { id:"name",        label:"Name",            size:"name",  bold:true,  max:2 },
+  { id:"academic",    label:"Degree & major",  size:"body",  max:2 },
+  { id:"jobTitle",    label:"Job title",       size:"body",  max:2 },
+  { id:"company",     label:"Company",         size:"body",  max:2 },
+  /* Industry has no line of its own: it rides along in parentheses
+     after Company, which is short enough in practice to carry it.
+     Toggling Industry off just drops the parenthetical. */
+  { id:"industry",    label:"Industry",        size:null,    max:0, ridesWith:"company" },
+  /* Email is the field every alum has and the one a student actually
+     acts on, so it gets its own size role, larger than body. */
+  { id:"email",       label:"Email",           size:"email", max:1, noTrim:true },
+  { id:"qr",          label:"LinkedIn QR",     size:null,    max:0 }
+];
+
+/* Every line switched on. The kiosk always uses this, so the CSV
+   view's toggles can never change what the check-in station prints. */
+const ALL_ON = Object.fromEntries(LINES.map(l => [l.id, true]));
+
+/* ================================================================
+   2. AVERY GEOMETRY (inches, US Letter portrait)
+   Small address labels only — both are 1" tall.
+   ================================================================ */
+const FORMATS = {
+  "5160":{ name:"Avery 5160", note:"1\" × 2⅝\", 3 across, 30 per sheet",
+           w:2.625, h:1, cols:3, rows:10, left:0.1875, top:0.5, pitchX:2.75, pitchY:1,
+           fs:{ name:8.6, body:6.8, small:6.2, email:7.5 }, qr:0.74, multiline:false },
+  "5161":{ name:"Avery 5161", note:"1\" × 4\", 2 across, 20 per sheet",
+           w:4, h:1, cols:2, rows:10, left:0.15625, top:0.5, pitchX:4.1875, pitchY:1,
+           fs:{ name:9.4, body:7.4, small:6.8, email:8.4 }, qr:0.8, multiline:false }
+};
+/* 5161 leads: same 1" height as 5160, but the extra width is what
+   keeps long job titles off the ellipsis. */
+const FORMAT_ORDER = ["5161","5160"];
+
+/* The kiosk is deliberately fixed — one format, one page count, every
+   field on. Change these two lines to retune the check-in station. */
+const KIOSK_FMT = "5161";
+const KIOSK_PAGES = 2;
+
+/* ================================================================
+   3. CLEANING — the registration export is free text, so each
+   value gets normalised before it reaches a label.
+   ================================================================ */
+const NULLISH = /^(n\s*\/?\s*a|na|none|null|nil|unknown|tbd|-{1,}|\.|,)$/i;
+
+function clean(v){
+  let s = String(v == null ? "" : v);
+  s = s.replace(/[‘’ʼ]/g,"'").replace(/[“”]/g,'"')
+       .replace(/[–—]/g,"-").replace(/ /g," ");
+  s = s.replace(/\s+/g," ").trim().replace(/^[,;]+|[,;]+$/g,"").trim();
+  if(NULLISH.test(s)) return "";
+  return s;
+}
+
+/* "BS' 26" → "BS '26";  "BA’20" → "BA '20";  "MSPS 96" → "MSPS '96" */
+function cleanDegree(v){
+  let s = clean(v);
+  if(!s) return "";
+  s = s.replace(/([A-Za-z])\s*'\s*(\d{2})(?!\d)/g, "$1 '$2");
+  s = s.replace(/\b([A-Z]{2,6}(?:\/[A-Z]{2,6})?)\s+(\d{2})(?!\d)/g, "$1 '$2");
+  s = s.replace(/\s*,\s*/g, ", ");
+  return s;
+}
+
+/* Excel eats leading zeros on New England ZIPs: 2108 → 02108 */
+function cleanCSZ(v){
+  let s = clean(v);
+  if(!s) return "";
+  s = s.replace(/(^|[\s,])(\d{4})(?=$|[\s,-])/g, (m,pre,d) => pre + "0" + d);
+  s = s.replace(/\s*,\s*/g, ", ").replace(/,\s*,/g, ",");
+  return s;
+}
+
+/* Only a genuine linkedin.com profile becomes a QR. Anything else
+   (a company site, a country name, "na") is reported, not encoded. */
+function cleanLinkedIn(v){
+  const raw = clean(v);
+  if(!raw) return { url:"", raw:"", status:"none" };
+  let s = raw.replace(/^https?:\/\//i,"").replace(/^www\./i,"");
+  if(!/^([a-z0-9-]+\.)*linkedin\.com\//i.test(s)) return { url:"", raw:raw, status:"bad" };
+  s = s.split(/[?#]/)[0].replace(/\/+$/,"");          // drop utm_* tracking tails
+  return { url:"https://www." + s.replace(/^[a-z]{2,3}\.linkedin\.com/i,"linkedin.com"), raw:raw, status:"ok" };
+}
+
+/* ================================================================
+   4. STATE  (CSV view only — the kiosk holds no state of its own)
+   ================================================================ */
+let roster = [], uid = 0;
+const state = {
+  fmt:"5161",
+  pages:2,
+  lines:Object.fromEntries(LINES.map(l => [l.id, true])),   // everything on
+  proofId:null,
+  onlyRegistered:true,
+  replaceOnImport:true
+};
+
+const $  = s => document.querySelector(s);
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const normH = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+
+function toast(msg,bad){
+  const o=$(".toast"); if(o) o.remove();
+  const t=document.createElement("div"); t.className="toast"; t.textContent=msg;
+  if(bad) t.style.background="var(--bad)";
+  document.body.appendChild(t); setTimeout(()=>t.remove(),3200);
+}
+
+function makePerson(src){
+  const p = { id:"p"+(++uid), example:!!src.example };
+  FIELDS.forEach(f => { p[f.key] = clean(src[f.key]); });
+  p.degree       = cleanDegree(src.degree);
+  p.cityStateZip = cleanCSZ(src.cityStateZip);
+  const li = cleanLinkedIn(src.linkedin);
+  p.linkedin = li.url; p.linkedinRaw = li.raw; p.linkedinStatus = li.status;
+  p.selected = true;
+  return p;
+}
+
+/* `lines` is the on/off map in force for this render — state.lines for
+   the CSV view, ALL_ON for the kiosk. Never read from state here. */
+function lineText(p,id,lines){
+  switch(id){
+    case "name":     return [p.firstName,p.lastName].filter(Boolean).join(" ");
+    case "academic": return [p.degree,p.major].filter(Boolean).join(" · ");
+    case "jobTitle": return p.jobTitle;
+    case "company":  {
+      /* Company carries Industry as a parenthetical when both exist
+         and the Industry toggle is on; Industry alone still shows. */
+      const ind = lines.industry ? p.industry : "";
+      if(p.company && ind) return p.company + " (" + ind + ")";
+      return p.company || ind;
+    }
+    case "industry": return p.industry;
+    case "email":    return p.email;
+    default:         return "";
+  }
+}
+
+/* ================================================================
+   5. CSV
+   ================================================================ */
+function parseCSV(text){
+  text = text.replace(/^﻿/,"").replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+  const rows=[]; let row=[], field="", i=0, inQ=false;
+  while(i < text.length){
+    const ch = text[i];
+    if(inQ){
+      if(ch === '"'){ if(text[i+1] === '"'){ field+='"'; i+=2; continue; } inQ=false; i++; continue; }
+      field += ch; i++; continue;
+    }
+    if(ch === '"'){ inQ = true; i++; continue; }
+    if(ch === ','){ row.push(field); field=""; i++; continue; }
+    if(ch === '\n'){ row.push(field); field=""; rows.push(row); row=[]; i++; continue; }
+    field += ch; i++;
+  }
+  row.push(field); rows.push(row);
+  return rows.filter(r => r.some(c => c.trim() !== ""));
+}
+
+function mapHeaders(header){
+  const norm = header.map(normH);
+  const used = new Set(), map = {};
+  FIELDS.forEach(f => {
+    for(let i = 0; i < norm.length; i++){
+      if(used.has(i) || !norm[i]) continue;
+      if(f.match(norm[i])){ map[f.key] = i; used.add(i); break; }
+    }
+  });
+  return map;
+}
+
+function ingestCSV(text){
+  const msg = $("#csvmsg");
+  const rows = parseCSV(text);
+  if(rows.length < 2){ msg.innerHTML='<div class="err">That file has a header but no data rows.</div>'; return; }
+
+  const map = mapHeaders(rows[0]);
+  if(map.firstName === undefined && map.lastName === undefined){
+    msg.innerHTML = '<div class="err">No name column found. The header row needs something recognisable as a first and last name.</div>';
+    return;
+  }
+
+  const added = [];
+  let skippedStatus = 0, skippedBlank = 0, guests = 0;
+  for(let r = 1; r < rows.length; r++){
+    const cells = rows[r], src = {};
+    FIELDS.forEach(f => { src[f.key] = map[f.key] !== undefined ? (cells[map[f.key]] || "") : ""; });
+    if(!clean(src.firstName) && !clean(src.lastName)){ skippedBlank++; continue; }
+    if(state.onlyRegistered && clean(src.regStatus) &&
+       !/^registered$/i.test(clean(src.regStatus))){ skippedStatus++; continue; }
+    const p = makePerson(src);
+    const q = parseInt(p.quantity,10);
+    if(q > 1) guests += (q - 1);
+    added.push(p);
+  }
+  if(!added.length){ msg.innerHTML='<div class="err">No usable rows — every row was blank or filtered out by status.</div>'; return; }
+
+  if(state.replaceOnImport || roster.every(p => p.example)) roster = [];
+  roster = roster.concat(added);
+  state.proofId = added[0].id;
+
+  // import report
+  const matched = FIELDS.filter(f => map[f.key] !== undefined).map(f => f.label);
+  const missing = FIELDS.filter(f => map[f.key] === undefined).map(f => f.label);
+  const noQR    = added.filter(p => p.linkedinStatus === "none").length;
+  const badQR   = added.filter(p => p.linkedinStatus === "bad");
+  const noDeg   = added.filter(p => !p.degree).length;
+  const noJob   = added.filter(p => !p.company || !p.jobTitle).length;
+
+  let html = '<div class="report"><b class="ok">Imported ' + added.length +
+    (added.length===1?" person":" people") + '.</b> Matched ' + matched.length + ' of ' + FIELDS.length + ' columns.<ul>';
+  if(skippedStatus) html += '<li>' + skippedStatus + ' row(s) skipped — status was not REGISTERED.</li>';
+  if(skippedBlank)  html += '<li>' + skippedBlank + ' blank row(s) skipped.</li>';
+  if(guests)        html += '<li><b>' + guests + ' extra guest(s)</b> implied by the quantity column — they have no name of their own in the export, so no label was made for them.</li>';
+  if(noQR)          html += '<li>' + noQR + ' with no LinkedIn URL — those labels print full-width text, no QR.</li>';
+  if(badQR.length)  html += '<li><b>' + badQR.length + ' LinkedIn value(s) that are not LinkedIn profiles</b> and were not encoded: ' +
+                            badQR.map(p => esc(p.firstName + " " + p.lastName) + ' (<span class="mono">' + esc(p.linkedinRaw) + '</span>)').join(", ") + '.</li>';
+  if(noDeg)         html += '<li>' + noDeg + ' with no degree/year on file — that line is skipped and the rest grow to fill the label.</li>';
+  if(noJob)         html += '<li>' + noJob + ' with no company or job title (including the ones who answered &ldquo;N/A&rdquo;).</li>';
+  html += '<li>Address columns are read but never printed — these are networking labels.</li>';
+  if(missing.length) html += '<li>Columns not present, left blank: ' + esc(missing.join(", ")) + '.</li>';
+  html += '</ul></div>';
+  msg.innerHTML = html;
+  render();
+}
+
+/* The template asks only for what gets printed. A fuller export with
+   address and registration columns still imports fine — the extras
+   are matched, then ignored. */
+const TEMPLATE_FIELDS = ["firstName","lastName","degree","major","jobTitle","company","industry","email","linkedin"];
+function templateCSV(){
+  const head = TEMPLATE_FIELDS.map(k => FIELDS.find(f => f.key === k).csv).join(",");
+  const rows = [
+    ["Maya","Ellsworth","BA '19","Marketing","Senior Brand Strategist","Liberty Mutual","Insurance","m.ellsworth@example.com","https://www.linkedin.com/in/example-one"],
+    ["Devin","Okonjo","BS '21, MBA '24","Finance","Credit Analyst II","Eastern Bank","Financial services","d.okonjo@example.com","https://www.linkedin.com/in/example-two"]
+  ];
+  const q = v => /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+  return [head].concat(rows.map(r => r.map(q).join(","))).join("\n") + "\n";
+}
+
+function download(blob,name){
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
+
+/* ================================================================
+   6. QR
+   ================================================================ */
+function qrCanvas(text,px){
+  if(!text) return null;
+  let qr = null;
+  for(const ec of ["M","L"]){
+    try{ qr = qrcode(0,ec); qr.addData(text); qr.make(); break; }
+    catch(e){ qr = null; }
+  }
+  if(!qr) return null;
+  const n = qr.getModuleCount(), quiet = 2, total = n + quiet*2;
+  const cell = Math.max(1, Math.floor(px/total)), size = cell*total;
+  const c = document.createElement("canvas"); c.width = c.height = size;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0,0,size,size);
+  g.fillStyle = "#000";
+  for(let r = 0; r < n; r++){
+    let run = -1;
+    for(let col = 0; col <= n; col++){
+      const dark = col < n && qr.isDark(r,col);
+      if(dark && run < 0) run = col;
+      if(!dark && run >= 0){ g.fillRect((run+quiet)*cell,(r+quiet)*cell,(col-run)*cell,cell); run = -1; }
+    }
+  }
+  return c;
+}
+
+/* ================================================================
+   7. LAYOUT — shared by both views, the proof and the PDF.
+   `measure(text, sizePt, bold)` returns width in inches.
+   `lines` is the on/off map; callers pass it explicitly.
+   ================================================================ */
+function wrapText(text,maxW,sizePt,bold,maxLines,measure){
+  const words = text.split(" ").filter(Boolean);
+  const out = []; let cur = "";
+  for(const w of words){
+    const trial = cur ? cur + " " + w : w;
+    if(measure(trial,sizePt,bold) <= maxW || !cur) cur = trial;
+    else { out.push(cur); cur = w; if(out.length === maxLines) break; }
+  }
+  if(cur && out.length < maxLines) out.push(cur);
+  // hard-trim the final line if it still overruns
+  if(out.length){
+    let last = out[out.length-1];
+    const overflow = words.join(" ") !== out.join(" ");
+    if(measure(last,sizePt,bold) > maxW || overflow){
+      let t = last;
+      while(t.length > 1 && measure(t + "…",sizePt,bold) > maxW) t = t.slice(0,-1);
+      if(overflow || measure(last,sizePt,bold) > maxW){
+        out[out.length-1] = t.replace(/[\s,·\-–]+$/,"") + "…";
+      }
+    }
+  }
+  return out;
+}
+
+function layout(p,F,measure,lines){
+  const padX = F.h >= 2 ? 0.18 : 0.1;
+  const padY = F.h >= 2 ? 0.15 : 0.085;
+  const useQR = lines.qr && !!p.linkedin;
+  const qrSize = useQR ? Math.min(F.qr, F.h - padY*2) : 0;
+  const gap = useQR ? (F.h >= 2 ? 0.16 : 0.08) : 0;
+  const textW = F.w - padX*2 - qrSize - gap;
+
+  /* Only blocks that are switched on AND have a value for this
+     person become lines. A missing field costs no vertical space. */
+  const blocks = [];
+  LINES.forEach(L => {
+    if(L.id === "qr" || L.ridesWith || !lines[L.id]) return;
+    const text = lineText(p,L.id,lines);
+    if(!text) return;
+    blocks.push({ id:L.id, text, base:F.fs[L.size], fs:F.fs[L.size],
+                  bold:!!L.bold, muted:!!L.muted, noTrim:!!L.noTrim,
+                  max:F.multiline ? L.max : 1 });
+  });
+
+  /* A half-printed email address is useless, so a noTrim block gives
+     up point size instead of its tail until it fits the column. */
+  blocks.forEach(b => {
+    if(!b.noTrim) return;
+    const nat = measure(b.text, b.base, b.bold);
+    if(nat > textW && nat > 0) b.base = Math.max(5, b.base * (textW / nat));
+    b.fs = b.base;
+  });
+
+  /* The Industry parenthetical is a nicety; an ellipsis is not.
+     If carrying it would push Company past the text column, drop it. */
+  const comp = blocks.find(b => b.id === "company");
+  if(comp && /\s\(.*\)$/.test(comp.text) &&
+     measure(comp.text, comp.base, comp.bold) > textW * Math.max(1, comp.max)){
+    comp.text = comp.text.replace(/\s\([^()]*\)$/, "");
+  }
+
+  const leading = 1.25;
+  /* Text is centred in the full inner height, but the block is only
+     allowed to grow into `avail`, which holds back a sliver for the
+     last line's descenders so g/y/p tails never ride the die-cut. */
+  const availRaw = F.h - padY*2;
+  const DESC_PAD = 0.022;              // inches (~1.6pt)
+  const avail = availRaw - DESC_PAD;
+  const MAX_UP = 1.6;
+
+  const relayout = s => {
+    blocks.forEach(b => {
+      b.fs = b.base * s;
+      b.lines = wrapText(b.text, textW, b.fs, b.bold, b.max, measure);
+    });
+    return blocks.reduce((t,b) => t + b.lines.length * (b.fs/72) * leading, 0);
+  };
+
+  /* Growing type is only worth it if it doesn't push a line into
+     truncation, so cap upscaling at the point the longest line
+     still fits the text column at its natural width. */
+  let widthCap = MAX_UP;
+  blocks.forEach(b => {
+    const natural = measure(b.text, b.base, b.bold);
+    if(natural > 0) widthCap = Math.min(widthCap, (textW * Math.max(1,b.max)) / natural);
+  });
+  widthCap = Math.max(1, Math.min(MAX_UP, widthCap));
+
+  /* Converge on a scale that fills the label: shrink without limit,
+     grow only as far as both caps allow. */
+  let scale = 1;
+  for(let pass = 0; pass < 4; pass++){
+    const h = relayout(scale);
+    if(h <= 0) break;
+    const next = Math.max(0.5, Math.min(widthCap, scale * (avail / h)));
+    if(Math.abs(next - scale) < 0.015){ scale = next; break; }
+    scale = next;
+  }
+  let totalH = relayout(scale);
+  if(totalH > avail && totalH > 0){            // final shrink-only guard
+    scale *= avail / totalH;
+    totalH = relayout(scale);
+  }
+
+  let y = padY + (availRaw - DESC_PAD - totalH)/2;
+  blocks.forEach(b => {
+    const lh = (b.fs/72) * leading;
+    b.placed = b.lines.map((t,i) => ({ text:t, baseline: y + lh*i + lh*0.78 }));
+    b.x = padX; b.w = textW;
+    y += lh * b.lines.length;
+  });
+
+  const minFs = blocks.length ? Math.min.apply(null, blocks.map(b => b.fs)) : 0;
+  return { padX, padY, useQR, qrSize, textW, blocks, minFs,
+           qrX: F.w - padX - qrSize, qrY: (F.h - qrSize)/2 };
+}
+
+/* measurement backends */
+const _mc = document.createElement("canvas").getContext("2d");
+const measureScreen = (t,pt,bold) => { _mc.font = (bold?"bold ":"") + pt + "px Helvetica, Arial, sans-serif"; return _mc.measureText(t).width/72; };
+const measurePDF = doc => (t,pt,bold) => { doc.setFont("helvetica", bold?"bold":"normal"); doc.setFontSize(pt); return doc.getTextWidth(t); };
+
+/* ================================================================
+   8. PROOF (shared renderer)
+   `meta` fills the readout line — only the CSV view wants it.
+   A null person draws the empty label outline.
+   ================================================================ */
+function drawProof(host, p, F, lines, meta){
+  host.innerHTML = "";
+  if(meta) $("#dims").textContent = F.name + " — " + F.note;
+
+  const availW = (host.parentElement.clientWidth || 360) - 34;
+  const DPI = Math.max(60, Math.min(132, availW / F.w));
+  host.style.width = (F.w*DPI) + "px";
+  host.style.height = (F.h*DPI) + "px";
+  if(!p) return;
+
+  const L = layout(p,F,measureScreen,lines);
+
+  if(meta){
+    const pt = Math.round(L.minFs*10)/10;
+    const legible = pt >= 6.5 ? "f-ok" : pt >= 5.5 ? "f-warn" : "f-bad";
+    const cut = L.blocks.filter(b => b.placed.some(x => /…$/.test(x.text))).length;
+    $("#dims").innerHTML = F.name + " — " + F.note +
+      ' &nbsp;·&nbsp; ' + L.blocks.length + ' line' + (L.blocks.length===1?"":"s") +
+      ' &nbsp;·&nbsp; <span class="' + legible + '">smallest type ' + pt + 'pt</span>' +
+      (cut ? ' &nbsp;·&nbsp; <span class="f-warn">' + cut + ' line' + (cut===1?"":"s") + ' trimmed to fit</span>' : '');
+  }
+
+  L.blocks.forEach(b => b.placed.forEach(pl => {
+    const el = document.createElement("div");
+    el.className = "ln"; el.textContent = pl.text;
+    el.style.left = (b.x*DPI) + "px";
+    el.style.width = (b.w*DPI) + "px";
+    el.style.fontSize = (b.fs/72*DPI) + "px";
+    el.style.lineHeight = "1";
+    el.style.top = ((pl.baseline - (b.fs/72)*0.78)*DPI) + "px";
+    el.style.fontWeight = b.bold ? "700" : "400";
+    if(b.muted) el.style.color = "#444";
+    host.appendChild(el);
+  }));
+
+  if(L.useQR){
+    const c = qrCanvas(p.linkedin, 280);
+    if(c){
+      c.style.left = (L.qrX*DPI) + "px";
+      c.style.top = (L.qrY*DPI) + "px";
+      c.style.width = c.style.height = (L.qrSize*DPI) + "px";
+      host.appendChild(c);
+    }
+  }
+}
+
+function renderProof(){
+  const p = roster.find(x => x.id === state.proofId) || roster.find(x => x.selected) || roster[0];
+  $("#proofwho").textContent = p ? (p.firstName + " " + p.lastName) : "";
+  drawProof($("#proof"), p || null, FORMATS[state.fmt], state.lines, true);
+}
+
+/* ================================================================
+   9. PDF
+   opts: { people, fmtKey, pages, lines }
+   ================================================================ */
+function buildPDF(opts){
+  const ns = window.jspdf;
+  if(!ns || !ns.jsPDF) throw new Error("The PDF engine didn't load. Check the connection and reload the page.");
+  const people = opts.people;
+  if(!people.length) throw new Error("Select at least one person in the roster.");
+
+  const F = FORMATS[opts.fmtKey], perSheet = F.cols*F.rows, pages = opts.pages;
+  const doc = new ns.jsPDF({ unit:"in", format:"letter", orientation:"portrait", compress:true });
+  const measure = measurePDF(doc);
+  let first = true;
+
+  people.forEach(p => {
+    const L = layout(p,F,measure,opts.lines);
+    let qrData = null;
+    if(L.useQR){ const c = qrCanvas(p.linkedin,420); if(c) qrData = c.toDataURL("image/png"); }
+    const alias = "qr_" + p.id;
+
+    for(let page = 0; page < pages; page++){
+      if(!first) doc.addPage();
+      first = false;
+      for(let i = 0; i < perSheet; i++){
+        const x0 = F.left + (i % F.cols)*F.pitchX;
+        const y0 = F.top  + Math.floor(i / F.cols)*F.pitchY;
+        L.blocks.forEach(b => {
+          doc.setFont("helvetica", b.bold?"bold":"normal");
+          doc.setFontSize(b.fs);
+          doc.setTextColor(b.muted ? 68 : 0);
+          b.placed.forEach(pl => doc.text(pl.text, x0 + b.x, y0 + pl.baseline, { baseline:"alphabetic" }));
+        });
+        if(qrData) doc.addImage(qrData,"PNG", x0+L.qrX, y0+L.qrY, L.qrSize, L.qrSize, alias, "FAST");
+      }
+    }
+  });
+  return { doc, people, sheets: people.length*pages, labels: people.length*pages*perSheet };
+}
+
+function filename(people,fmtKey){
+  const stamp = new Date().toISOString().slice(0,10);
+  const who = people.length === 1
+    ? (people[0].lastName || people[0].firstName || "label").toLowerCase().replace(/[^a-z0-9]+/g,"-")
+    : people.length + "-attendees";
+  return "avery-" + fmtKey + "_" + who + "_" + stamp + ".pdf";
+}
+
+/* ================================================================
+   10. KIOSK VIEW — single label, fixed settings, straight to print
+   ================================================================ */
+const K_KEYS = ["firstName","lastName","degree","major","jobTitle","company","industry","email","linkedin"];
+
+function kDraft(){
+  const src = {}; let any = false;
+  K_KEYS.forEach(k => {
+    const el = $("#k_"+k);
+    src[k] = el ? el.value : "";
+    if(clean(src[k])) any = true;
+  });
+  return any ? makePerson(src) : null;
+}
+
+function kRender(){
+  const p = kDraft();
+  $("#kGhost").style.display = p ? "none" : "";
+  $("#kPrint").disabled = !p;
+  drawProof($("#kProof"), p, FORMATS[KIOSK_FMT], ALL_ON, false);
+}
+
+let kTimer = null;
+$("#kform").addEventListener("input", () => { clearTimeout(kTimer); kTimer = setTimeout(kRender, 400); });
+$("#kform").addEventListener("change", () => { clearTimeout(kTimer); kRender(); });
+$("#kform").addEventListener("focusout", () => { clearTimeout(kTimer); kRender(); });
+$("#kform").addEventListener("keydown", e => {
+  if(e.key === "Enter"){ e.preventDefault(); clearTimeout(kTimer); kRender(); $("#kPrint").click(); }
+});
+
+function kReset(){
+  K_KEYS.forEach(k => $("#k_"+k).value = "");
+  clearTimeout(kTimer); kRender();
+  $("#k_firstName").focus();
+}
+
+$("#kClear").addEventListener("click", () => { $("#kMsg").textContent = ""; kReset(); });
+
+$("#kPrint").addEventListener("click", () => {
+  const msg = $("#kMsg"); msg.textContent = ""; msg.className = "";
+  const p = kDraft();
+  if(!p){ msg.className="err"; msg.textContent="Fill in at least one field."; return; }
+  let out;
+  try{
+    out = buildPDF({ people:[p], fmtKey:KIOSK_FMT, pages:KIOSK_PAGES, lines:ALL_ON });
+  }catch(err){ msg.className="err"; msg.textContent = err.message; return; }
+
+  const who = [p.firstName,p.lastName].filter(Boolean).join(" ") || "this alum";
+  try{
+    out.doc.autoPrint();                            // the PDF opens its own print dialog
+    const win = window.open(out.doc.output("bloburl"), "_blank");
+    if(!win) throw new Error("popup blocked");
+    msg.className = "ok"; msg.textContent = "Print dialog opening for " + who + ".";
+  }catch(e){
+    out.doc.save(filename([p],KIOSK_FMT));          // popup blocked: fall back to a download
+    msg.className = "ok"; msg.textContent = "Saved the PDF — open it to print.";
+  }
+  setTimeout(kReset, 1200);
+});
+
+/* ================================================================
+   11. CSV VIEW — roster table, toggles, output
+   ================================================================ */
+function render(){
+  const tb = $("#rows"); tb.innerHTML = "";
+  $("#emptymsg").hidden = roster.length > 0;
+
+  roster.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.className = (p.selected?"sel ":"") + (p.id === state.proofId ? "cur" : "");
+    const qr = p.linkedinStatus === "ok" ? '<span class="flag f-ok">QR</span>'
+             : p.linkedinStatus === "bad" ? '<span class="flag f-warn" title="' + esc(p.linkedinRaw) + '">not LinkedIn</span>'
+             : '<span class="flag f-off">none</span>';
+    const printable = LINES.filter(l => l.id !== "qr" && !l.ridesWith);
+    const onCount = printable.filter(l => state.lines[l.id]).length;
+    const have = printable.filter(l => state.lines[l.id] && lineText(p,l.id,state.lines)).length;
+    const fill = '<span class="flag ' + (have === onCount ? "f-ok" : have >= onCount-1 ? "f-warn" : "f-off") +
+                 '">' + have + ' / ' + onCount + '</span>';
+    tr.innerHTML =
+      '<td><input type="checkbox" data-act="sel" data-id="'+p.id+'"'+(p.selected?" checked":"")+' aria-label="Include '+esc(p.firstName+" "+p.lastName)+'"></td>'+
+      '<td><span class="nm">'+esc([p.firstName,p.lastName].filter(Boolean).join(" ")||"—")+'</span>'+
+        (p.example?'<span class="ex">example</span>':"")+
+        (p.email?'<div class="meta">'+esc(p.email)+'</div>':"")+'</td>'+
+      '<td>'+esc(p.degree||"—")+(p.major?'<div class="meta">'+esc(p.major)+'</div>':"")+'</td>'+
+      '<td>'+esc(p.jobTitle||"—")+(p.company?'<div class="meta">'+esc(p.company)+'</div>':"")+'</td>'+
+      '<td>'+fill+'</td>'+
+      '<td>'+qr+'</td>'+
+      '<td><button class="tiny ghost" data-act="del" data-id="'+p.id+'" aria-label="Remove">✕</button></td>';
+    tr.addEventListener("click", e => {
+      if(e.target.closest("button") || e.target.matches("input")) return;
+      state.proofId = p.id; render();
+    });
+    tb.appendChild(tr);
+  });
+
+  const sel = roster.filter(p => p.selected).length;
+  $("#rostercount").textContent = roster.length ? sel + " of " + roster.length + " selected" : "";
+  if(!roster.some(p => p.id === state.proofId)) state.proofId = (roster.find(p=>p.selected) || roster[0] || {}).id || null;
+
+  renderToggles(); renderMath(); renderProof();
+}
+
+function renderToggles(){
+  const host = $("#toggles"); host.innerHTML = "";
+  LINES.forEach(l => {
+    const on = state.lines[l.id];
+    const lab = document.createElement("label");
+    lab.className = "tg" + (on?" on":"");
+    lab.innerHTML = '<input type="checkbox"'+(on?" checked":"")+'><span>'+esc(l.label)+'</span>';
+    lab.querySelector("input").addEventListener("change", e => {
+      state.lines[l.id] = e.target.checked;
+      renderToggles(); renderProof();
+    });
+    host.appendChild(lab);
+  });
+}
+
+function renderMath(){
+  const F = FORMATS[state.fmt], perSheet = F.cols*F.rows;
+  const n = roster.filter(p => p.selected).length;
+  $("#math").innerHTML =
+    '<span>Per sheet <b>'+perSheet+'</b></span>'+
+    '<span>People <b>'+n+'</b></span>'+
+    '<span>Sheets <b>'+(n*state.pages)+'</b></span>'+
+    '<span>Labels <b>'+(n*state.pages*perSheet)+'</b></span>';
+  $("#gen").disabled = $("#preview").disabled = (n === 0);
+}
+
+function csvPeople(){ return roster.filter(p => p.selected); }
+function csvOpts(){ return { people:csvPeople(), fmtKey:state.fmt, pages:state.pages, lines:state.lines }; }
+
+// format dropdown
+const fmtSel = $("#fmt");
+FORMAT_ORDER.forEach(k => {
+  const o = document.createElement("option");
+  o.value = k; o.textContent = FORMATS[k].name + " — " + FORMATS[k].note;
+  if(k === state.fmt) o.selected = true;
+  fmtSel.appendChild(o);
+});
+fmtSel.addEventListener("change", e => { state.fmt = e.target.value; renderMath(); renderProof(); });
+$("#pages").addEventListener("change", e => { state.pages = parseInt(e.target.value,10); renderMath(); });
+
+// roster interactions
+$("#rows").addEventListener("change", e => {
+  const b = e.target.closest("[data-act=sel]"); if(!b) return;
+  const p = roster.find(x => x.id === b.dataset.id); if(p){ p.selected = b.checked; render(); }
+});
+$("#rows").addEventListener("click", e => {
+  const b = e.target.closest("[data-act=del]"); if(!b) return;
+  roster = roster.filter(x => x.id !== b.dataset.id); render();
+});
+$("#selall").addEventListener("click", () => { roster.forEach(p=>p.selected=true); render(); });
+$("#selnone").addEventListener("click", () => { roster.forEach(p=>p.selected=false); render(); });
+$("#wipe").addEventListener("click", () => { roster=[]; $("#csvmsg").innerHTML=""; render(); toast("Roster cleared."); });
+
+// import controls
+$("#onlyreg").addEventListener("change", e => state.onlyRegistered = e.target.checked);
+$("#replace").addEventListener("change", e => state.replaceOnImport = e.target.checked);
+
+const drop = $("#drop"), fileInput = $("#file");
+$("#pick").addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", e => {
+  const f = e.target.files[0]; if(!f) return;
+  f.text().then(ingestCSV); fileInput.value = "";
+});
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("hot"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("hot"); }));
+drop.addEventListener("drop", e => {
+  const f = e.dataTransfer.files[0]; if(!f) return;
+  if(!/\.csv$/i.test(f.name) && f.type !== "text/csv"){
+    $("#csvmsg").innerHTML = '<div class="err">That isn\'t a .csv. Export the sheet as CSV and try again.</div>'; return;
+  }
+  f.text().then(ingestCSV);
+});
+$("#tmpl").addEventListener("click", () => {
+  download(new Blob([templateCSV()],{type:"text/csv;charset=utf-8"}), "alumni-label-template.csv");
+  toast("Template downloaded.");
+});
+
+$("#gen").addEventListener("click", () => {
+  const msg = $("#genmsg"); msg.innerHTML = "";
+  try{
+    const { doc, people, sheets, labels } = buildPDF(csvOpts());
+    doc.save(filename(people,state.fmt));
+    msg.innerHTML = '<div class="note" style="margin-top:10px"><span class="ok">PDF ready — '+sheets+
+      (sheets===1?" sheet, ":" sheets, ")+labels+' labels.</span></div>';
+  }catch(err){ msg.innerHTML = '<div class="err">'+esc(err.message)+'</div>'; }
+});
+$("#preview").addEventListener("click", () => {
+  const msg = $("#genmsg"); msg.innerHTML = "";
+  try{ window.open(buildPDF(csvOpts()).doc.output("bloburl"),"_blank"); }
+  catch(err){ msg.innerHTML = '<div class="err">'+esc(err.message)+'</div>'; }
+});
+
+/* ================================================================
+   12. MODE SWITCH + BOOT
+   ================================================================ */
+function showMode(which){
+  const one = which === "one";
+  $("#mode-one").setAttribute("aria-selected", one);
+  $("#mode-csv").setAttribute("aria-selected", !one);
+  $("#view-one").hidden = !one;
+  $("#view-csv").hidden = one;
+  if(one){ kRender(); $("#k_firstName").focus(); } else { renderProof(); }
+}
+$("#mode-one").addEventListener("click", () => showMode("one"));
+$("#mode-csv").addEventListener("click", () => showMode("csv"));
+
+function checkLibs(){
+  const ok = window.jspdf && window.jspdf.jsPDF && typeof window.qrcode === "function";
+  const el = $("#libstat");
+  el.textContent = ok ? "PDF engine ready" : "PDF engine unavailable — check connection";
+  el.style.color = ok ? "var(--good)" : "var(--bad)";
+}
+
+/* seeded examples so the CSV view opens in a working state — the
+   first real import replaces them */
+roster = [
+  { firstName:"Maya", lastName:"Ellsworth", degree:"BA '19", major:"Marketing",
+    jobTitle:"Senior Brand Strategist", company:"Liberty Mutual", industry:"Insurance",
+    email:"m.ellsworth@example.com", linkedin:"https://www.linkedin.com/in/example-one", example:true },
+  { firstName:"Devin", lastName:"Okonjo", degree:"BS '21, MBA '24", major:"Finance",
+    jobTitle:"Credit Analyst II", company:"Eastern Bank", industry:"Financial services",
+    email:"d.okonjo@example.com",
+    linkedin:"https://www.linkedin.com/in/example-two", example:true },
+  { firstName:"Priya", lastName:"Raman", degree:"BS '17", major:"Computer Science",
+    jobTitle:"Engineering Manager", company:"", industry:"",
+    email:"p.raman@example.com", linkedin:"", example:true }
+].map(makePerson);
+state.proofId = roster[0].id;
+
+render();          // builds the CSV view (hidden at boot)
+kRender();         // empty label outline in the kiosk
+showMode("one");   // the station opens on Single label
+window.addEventListener("load", checkLibs);
+window.addEventListener("resize", () => { if($("#view-one").hidden) renderProof(); else kRender(); });
+})();
+</script>
+</body>
+</html>
